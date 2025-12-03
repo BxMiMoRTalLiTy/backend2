@@ -76,33 +76,34 @@ app.get('/api/persons/:id', (request, response,next) => {
     .catch(error =>next(error))
 })
 
-app.post('/api/persons/', (request,response) => {
+app.post('/api/persons', (request, response, next) => {
     const body = request.body;
-    if(!body.content){
 
-        if(!body.number){
-        response.status(400).json({error: 'number is missing'})
-        } else if(!body.name){
-        response.status(400).json({error: 'name is missing'})
-        }
-
-        if(!Person.some( x => x.name === body.name)){
-            const person = new Person({
-            name: body.name,
-            number: body.number
-            })
-            person.save().then(x => {
-                response.json(x);
-            })
-            app.use(morgan('tiny' + `${JSON.stringify(person)}`))
-
-        } else {
-            response.status(400).json({error: 'name must be unique'})
-        }
-    } else {
-        response.status(400).json({error: 'content is missing'})
+    if(!body.name) {
+        return response.status(400).json({ error: 'name is missing' });
     }
-})
+
+    if(!body.number) {
+        return response.status(400).json({ error: 'number is missing' });
+    }
+    Person.findOne({ name: body.name })
+        .then(existing => {
+            if (existing) {
+                return response.status(400).json({ error: 'name must be unique' });
+            }
+
+            const person = new Person({
+                name: body.name,
+                number: body.number
+            });
+
+            person
+                .save()
+                .then(saved => response.json(saved))
+                .catch(error => next(error));
+        })
+        .catch(error => next(error));
+});
 
 app.delete('/api/persons/:id', (request, response, next) =>{
     Person.findByIdAndDelete(request.params.id)
@@ -112,18 +113,17 @@ app.delete('/api/persons/:id', (request, response, next) =>{
     .catch(error => next(error));
 })
 
-app.put('/api/persons/:id', (request, response, next) =>{
-    const body = request.body
-    const person = {
-        name: body.name,
-        number: body.number
-    }
-    Person.findByIdAndUpdate(request.params.id, note, {new:true})
-        .then(person2=> {
-            response.json(person2)
-        })
-        .catch(error => next(error))
-})
+app.put('/api/persons/:id', (request, response, next) => {
+    const { name, number } = request.body;
+
+    Person.findByIdAndUpdate(
+        request.params.id,
+        { name, number },
+        { new: true, runValidators: true, context: 'query' }
+    )
+    .then(updated => response.json(updated))
+    .catch(error => next(error));
+});
 
 const badPath = (request, response, next) => {
     response.status(404).send({error: 'Ruta desconocida'})
